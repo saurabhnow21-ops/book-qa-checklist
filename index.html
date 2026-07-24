@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Book QA Checklist - New UI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root{
+    --bg:#F6F7F4; --surface:#FFFFFF; --surface-soft:#F0F3ED; --ink:#24211D;
+    --muted:#6E746A; --line:#DEE4D8; --line-strong:#C7D1BF;
+    --accent:#8F332B; --accent-soft:#F6E7E4; --green:#2F6D50; --green-soft:#E3F1E8;
+    --gold:#A77922; --gold-soft:#F4EAD3; --gray:#68706A; --gray-soft:#ECEFED;
+    --shadow:0 18px 48px rgba(49,55,43,.10); --shadow-sm:0 8px 22px rgba(49,55,43,.08);
+    --sans:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --serif:Georgia, "Iowan Old Style", "Times New Roman", serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0; min-height:100vh; background:radial-gradient(circle at top left, #FFF7E8 0, transparent 330px), linear-gradient(135deg, var(--bg), #EDF2F4 58%, #F9F7F0); color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased;}
+  body::before{content:""; position:fixed; inset:0; pointer-events:none; background-image:linear-gradient(rgba(36,33,29,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(36,33,29,.025) 1px, transparent 1px); background-size:28px 28px; mask-image:linear-gradient(to bottom, rgba(0,0,0,.45), transparent 60%);}
+  h1,.serif{font-family:var(--serif);}
+  button,input,select,textarea{font:inherit;}
+
+  /* ---- topbar ---- */
+  .topbar{position:sticky; top:0; z-index:30; padding:18px 20px 14px; background:rgba(246,247,244,.86); backdrop-filter:blur(18px); border-bottom:1px solid rgba(199,209,191,.78); box-shadow:0 8px 24px rgba(49,55,43,.06);}
+  .topbar-inner{max-width:1120px; margin:0 auto; display:flex; align-items:center; gap:18px; flex-wrap:wrap;}
+  h1{font-size:30px; line-height:1; font-weight:700; margin:0;}
+  .subtitle{font-size:11px; color:var(--muted); margin-top:7px; text-transform:uppercase; letter-spacing:.9px;}
+  .meta-row{display:grid; grid-template-columns:repeat(auto-fit, minmax(156px, 1fr)); gap:10px; margin:16px auto 0; max-width:1120px;}
+  .meta-field{display:flex; flex-direction:column; gap:5px;}
+  .meta-field label{font-size:10px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); font-weight:700;}
+  .meta-field input,.meta-field select{font-size:13px; padding:9px 10px; border:1px solid var(--line); background:rgba(255,255,255,.88); color:var(--ink); border-radius:7px; min-width:0; width:100%; transition:border-color .2s ease, box-shadow .2s ease, background .2s ease;}
+  .meta-field select{min-width:0;}
+  .meta-field input:focus,.meta-field select:focus{outline:none; border-color:var(--accent); background:var(--surface); box-shadow:0 0 0 3px rgba(143,51,43,.13);}
+  .stage-panel{max-width:1120px; margin:12px auto 0; padding:10px 12px; background:rgba(255,255,255,.78); border:1px solid var(--line); border-radius:8px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; box-shadow:var(--shadow-sm);}
+  .stage-copy{font-size:12px; line-height:1.45; color:var(--muted); flex:1; min-width:240px;}
+  .stage-action{border:1px solid var(--line-strong); background:var(--surface-soft); color:var(--ink); font-size:11px; font-weight:800; padding:8px 11px; border-radius:7px; cursor:pointer; text-transform:uppercase; letter-spacing:.45px; transition:transform .18s ease, border-color .18s ease, background .18s ease, color .18s ease;}
+  .stage-action:hover{transform:translateY(-1px); border-color:var(--accent); background:var(--accent-soft); color:var(--accent);}
+
+  .stamp-wrap{margin-left:auto; display:flex; align-items:center; gap:14px; flex-shrink:0;}
+  .progress-mini{text-align:right;}
+  .progress-mini .num{font-size:26px; line-height:1; font-weight:800;}
+  .progress-mini .lbl{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.7px; margin-top:4px;}
+  .stamp{width:68px; height:68px; border-radius:50%; border:2px solid var(--accent); display:flex; align-items:center; justify-content:center; transform:rotate(-8deg); flex-shrink:0; background:var(--surface); box-shadow:0 10px 30px rgba(143,51,43,.14); transition:transform .28s ease, background .28s ease, box-shadow .28s ease, border-color .28s ease;}
+  .stamp span{font-family:var(--serif); font-weight:700; font-size:10px; color:var(--accent); letter-spacing:.5px; text-align:center; line-height:1.15;}
+  .stamp.passed{background:var(--green); border-color:var(--green); box-shadow:0 12px 30px rgba(47,109,80,.22);}
+  .stamp.passed span{color:var(--surface);}
+  .stamp.errorfill{background:var(--accent); box-shadow:0 12px 30px rgba(143,51,43,.22);}
+  .stamp.errorfill span{color:var(--surface);}
+
+  .bar-track{max-width:1120px; margin:13px auto 0; height:8px; background:rgba(255,255,255,.7); border:1px solid var(--line); border-radius:999px; overflow:hidden;}
+  .bar-fill{height:100%; background:linear-gradient(90deg, var(--accent), var(--gold)); width:0%; transition:width .38s cubic-bezier(.2,.8,.2,1);}
+  .counts-line{max-width:1120px; margin:7px auto 0; font-size:11px; color:var(--muted);}
+
+  /* ---- tabs ---- */
+  .tabbar{max-width:1120px; margin:18px auto 0; padding:0 20px; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px;}
+  .tab-btn{padding:12px 10px; border:1px solid var(--line); background:rgba(255,255,255,.78); font-size:12px; text-transform:uppercase; letter-spacing:.45px; cursor:pointer; border-radius:8px; color:var(--muted); font-weight:800; box-shadow:var(--shadow-sm); transition:transform .18s ease, box-shadow .18s ease, background .18s ease, color .18s ease, border-color .18s ease;}
+  .tab-btn:hover{transform:translateY(-1px); border-color:var(--line-strong); box-shadow:var(--shadow);}
+  .tab-btn.is-active{background:var(--ink); color:var(--surface); border-color:var(--ink);}
+
+  .container{max-width:1120px; margin:0 auto; padding:12px 20px 34px;}
+  .tab-pane{display:none; border:1px solid rgba(222,228,216,.92); background:rgba(255,255,255,.64); padding:14px; border-radius:8px; box-shadow:var(--shadow);}
+  .tab-pane.active{display:block; animation:panelIn .22s ease-out;}
+  .pane-note{font-size:12px; line-height:1.45; color:var(--muted); margin:0 0 12px; padding:10px 12px; background:var(--gold-soft); border:1px solid #E4D3A8; border-radius:8px;}
+
+  .section{background:var(--surface); border:1px solid var(--line); border-radius:8px; margin:0 0 12px; overflow:hidden; box-shadow:0 10px 24px rgba(49,55,43,.06); transition:box-shadow .18s ease, border-color .18s ease;}
+  .section:hover{border-color:var(--line-strong); box-shadow:var(--shadow-sm);}
+  .section-head{display:flex; align-items:center; gap:12px; padding:13px 15px; cursor:pointer; user-select:none; border-bottom:1px solid transparent; transition:background .18s ease;}
+  .section-head:hover{background:var(--surface-soft);}
+  .section-num{display:grid; place-items:center; width:28px; height:28px; border-radius:7px; background:var(--accent-soft); font-weight:800; font-size:13px; color:var(--accent); flex-shrink:0;}
+  .section-title{font-family:var(--serif); font-weight:700; font-size:16px; flex:1;}
+  .section-count{font-size:11px; color:var(--muted); font-weight:700;}
+  .chevron{font-size:12px; color:var(--muted); transition:transform .2s ease;}
+  .section.open .chevron{transform:rotate(90deg);}
+  .section.open .section-head{border-bottom:1px solid var(--line);}
+  .section-body{display:none; padding:6px 12px 10px;}
+  .section.open .section-body{display:block;}
+
+  .item{border-left:4px solid transparent; border-bottom:1px solid var(--line); padding:10px 6px 10px 10px; margin-bottom:0; border-radius:6px; transition:background .18s ease, border-color .18s ease, transform .18s ease;}
+  .item:hover{background:#FAFBF8; transform:translateX(1px);}
+  .item:last-child{border-bottom:none;}
+  .item.is-pass{background:var(--green-soft); border-left-color:var(--green);}
+  .item.is-error{background:var(--accent-soft); border-left-color:var(--accent);}
+  .item.is-na{background:var(--gray-soft); border-left-color:var(--gray);}
+  .item.is-pdf-limited{border-left-style:dotted;}
+  .item-main{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap;}
+  .item-id{font-family:var(--mono); font-size:11px; color:var(--muted); min-width:38px; margin-top:3px; flex-shrink:0; font-weight:800;}
+  .item-text{font-size:13px; line-height:1.45; flex:1; min-width:220px;}
+  .item.is-pdf-limited .item-text::after{content:" PDF proof: source/physical-only"; display:inline-block; margin-left:6px; padding:2px 6px; border:1px solid var(--line); border-radius:6px; color:var(--muted); font-size:9px; font-weight:800; text-transform:uppercase; white-space:nowrap; background:rgba(255,255,255,.65);}
+  .item.is-na .item-text{color:var(--muted);}
+  .status-toggle{display:flex; gap:6px; flex-shrink:0; margin-left:auto;}
+  .stat-btn{min-width:32px; height:28px; padding:0 8px; border:1px solid var(--line-strong); border-radius:7px; background:var(--surface); cursor:pointer; font-size:12px; font-weight:800; color:var(--muted); line-height:1; transition:transform .15s ease, background .15s ease, color .15s ease, border-color .15s ease;}
+  .stat-btn:hover{transform:translateY(-1px); border-color:var(--ink);}
+  .stat-btn.pass.active{background:var(--green); border-color:var(--green); color:var(--surface);}
+  .stat-btn.error.active{background:var(--accent); border-color:var(--accent); color:var(--surface);}
+  .stat-btn.na.active{background:var(--gray); border-color:var(--gray); color:var(--surface);}
+  .remark-input{width:100%; margin-top:8px; font-family:var(--sans); font-size:12.5px; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:rgba(255,255,255,.82); color:var(--ink); transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;}
+  .item.is-error .remark-input{border-color:rgba(143,51,43,.56);}
+  .item.is-pass .remark-input{border-color:rgba(47,109,80,.48);}
+  .item.is-na .remark-input{border-color:rgba(104,112,106,.48);}
+  .remark-input:focus{outline:none; border-color:var(--accent); background:var(--surface); box-shadow:0 0 0 3px rgba(143,51,43,.13);}
+  .item.needs-remark .remark-input{border-width:1px; box-shadow:0 0 0 3px rgba(143,51,43,.14);}
+  .remark-hint{font-size:11px; color:var(--accent); margin-top:4px; min-height:14px; font-weight:800;}
+
+  /* ---- export + footer ---- */
+  .export-bar{max-width:1120px; margin:16px auto 0; padding:0 20px; display:flex; gap:10px; flex-wrap:wrap;}
+  .export-btn{flex:1; min-width:190px; padding:13px 14px; border:1px solid var(--accent); background:var(--accent); color:var(--surface); font-size:12px; font-weight:800; letter-spacing:.45px; border-radius:8px; cursor:pointer; text-transform:uppercase; box-shadow:0 12px 28px rgba(143,51,43,.18); transition:transform .18s ease, box-shadow .18s ease, background .18s ease;}
+  .export-btn:hover{transform:translateY(-1px); background:#7D2C25; box-shadow:0 16px 34px rgba(143,51,43,.24);}
+  .notes-section{max-width:1120px; margin:16px auto 0; padding:0 20px;}
+  .notes-box{background:rgba(255,255,255,.82); border:1px solid var(--line); border-radius:8px; padding:14px; box-shadow:var(--shadow-sm);}
+  .notes-box label{display:block; font-family:var(--serif); font-size:17px; font-weight:700; margin-bottom:8px;}
+  .notes-box textarea{width:100%; min-height:120px; resize:vertical; font-family:var(--sans); font-size:13px; line-height:1.5; padding:10px 11px; border:1px solid var(--line); border-radius:8px; background:rgba(255,255,255,.9); color:var(--ink); transition:border-color .18s ease, box-shadow .18s ease;}
+  .notes-box textarea:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(143,51,43,.13);}
+  .footer-controls{max-width:1120px; margin:10px auto 0; padding:0 20px 34px; display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted); flex-wrap:wrap; gap:8px;}
+  .reset-btn{background:transparent; border:1px solid var(--line-strong); color:var(--muted); font-size:12px; font-weight:800; padding:8px 13px; border-radius:7px; cursor:pointer; transition:color .18s ease, border-color .18s ease, background .18s ease;}
+  .reset-btn:hover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft);}
+
+  @keyframes panelIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+  @media (max-width:720px){
+    .topbar{position:relative;}
+    .stamp-wrap{margin-left:0; width:100%; justify-content:space-between;}
+    .tabbar{grid-template-columns:1fr; margin-top:12px;}
+  }
+  @media (max-width:560px){
+    h1{font-size:24px;}
+    .item-main{flex-wrap:wrap;}
+    .status-toggle{margin-left:0; width:100%;}
+    .stat-btn{flex:1;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div>
+      <h1>Book QA Checklist</h1>
+      <div class="subtitle">Cover, inner pages &amp; print specs &middot; flag &amp; export</div>
+    </div>
+    <div class="stamp-wrap">
+      <div class="progress-mini">
+        <div class="num" id="pct">0%</div>
+        <div class="lbl" id="pctSub">0 / 0 reviewed</div>
+      </div>
+      <div class="stamp" id="stamp"><span id="stampLabel">QA<br>REVIEW</span></div>
+    </div>
+  </div>
+  <div class="meta-row">
+    <div class="meta-field"><label>Title</label><input id="mTitle" type="text" placeholder="Book title"></div>
+    <div class="meta-field"><label>Author</label><input id="mAuthor" type="text" placeholder="Author name"></div>
+    <div class="meta-field"><label>Publisher</label><input id="mPublisher" type="text" placeholder="Publisher name"></div>
+    <div class="meta-field"><label>ISBN</label><input id="mIsbn" type="text" placeholder="ISBN"></div>
+    <div class="meta-field"><label>Edition / Reprint</label><input id="mEdition" type="text" placeholder="e.g. 4th reprint"></div>
+    <div class="meta-field"><label>Checked by</label><input id="mChecker" type="text" placeholder="Name"></div>
+    <div class="meta-field">
+      <label>QA stage</label>
+      <select id="mStage">
+        <option value="source_design">Source design file before printer</option>
+        <option value="prepress_pdf">Printer prepress PDF proof</option>
+      </select>
+    </div>
+  </div>
+  <div class="stage-panel">
+    <div class="stage-copy" id="stageCopy">Use this for editable/source-file QA before sharing final files with the printer. Check against the digital version, previous print, and scripts.</div>
+    <button type="button" class="stage-action" id="applyPdfScopeBtn">Apply PDF proof N/A items</button>
+  </div>
+  <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+  <div class="counts-line" id="countsLine">0 passed &middot; 0 errors &middot; 0 n/a &middot; 0 pending</div>
+</div>
+
+<div class="tabbar">
+  <button type="button" class="tab-btn is-active" id="tabCoverBtn" data-tab="cover">Book Cover</button>
+  <button type="button" class="tab-btn" id="tabInnerBtn" data-tab="inner">Inner Pages</button>
+  <button type="button" class="tab-btn" id="tabSpecsBtn" data-tab="specs">Print Specs</button>
+</div>
+
+<div class="container">
+  <div class="tab-pane active" data-tab="cover" id="coverPane"></div>
+  <div class="tab-pane" data-tab="inner" id="innerPane"></div>
+  <div class="tab-pane" data-tab="specs" id="specsPane"></div>
+</div>
+
+<div class="notes-section">
+  <div class="notes-box">
+    <label for="finalNotes">Additional Notes</label>
+    <textarea id="finalNotes" placeholder="Add overall QA notes, printer comments, approvals, pending decisions, or special instructions."></textarea>
+  </div>
+</div>
+
+<div class="export-bar">
+  <button type="button" class="export-btn" onclick="buildPDF()">Export PDF report</button>
+  <button type="button" class="export-btn" onclick="buildExcel()">Export Excel report</button>
+</div>
+
+<div class="footer-controls">
+  <div id="statusMsg">Loading saved progress&hellip;</div>
+  <button type="button" class="reset-btn" onclick="resetAll()">Reset checklist</button>
+</div>
+
+<script>
+/* ---------------- data ---------------- */
+const coverData = [
+  { section:'Reference Check', items:[
+    {id:'RF1', text:'Book checked against digital version, previous print version and scripts'},
+    {id:'RF2', text:'Title, author name, publisher name and logo match previous book prints unless a change is approved by email'},
+  ]},
+  { section:'Front Cover', items:[
+    {id:'FC1', text:'Book title correct - matches approved title / previous edition'},
+    {id:'FC2', text:'Author name correct and correctly formatted'},
+    {id:'FC3', text:"Publisher's name and logo present and correct on the front cover"},
+    {id:'FC4', text:'Front cover illustration/artwork positioned and scaled per the previous version'},
+    {id:'FC5', text:'Front cover images/logo at the highest available resolution'},
+    {id:'FC6', text:'Front cover colour consistency and vibrancy - no smudging'},
+  ]},
+  { section:'Spine', items:[
+    {id:'SP1', text:'Spine alignment - text properly centred'},
+    {id:'SP2', text:'Book title correct on the spine'},
+    {id:'SP3', text:"Publisher's logo correct on the spine"},
+    {id:'SP4', text:'Author name correct on the spine'},
+    {id:'SP5', text:'Spine width matches page count / order spec'},
+  ]},
+  { section:'Back Cover', items:[
+    {id:'BC1', text:'Website QR code present and scans to the correct URL'},
+    {id:'BC2', text:'ISBN printed correctly'},
+    {id:'BC3', text:'Barcode scans accurately and matches the ISBN'},
+    {id:'BC4', text:'MRP - US price correct'},
+    {id:'BC5', text:'MRP - UK price correct'},
+    {id:'BC6', text:'MRP - INR price correct'},
+    {id:'BC7', text:'Back cover text / blurb matches approved copy, no typos'},
+    {id:'BC8', text:'Title verso / copyright text correct, if placed on the back cover instead of an inner page'},
+  ]},
+  { section:'Cover Finishing & Physical', items:[
+    {id:'CF1', text:'All cover text, title and logos are built in vector'},
+    {id:'CF2', text:'Cover board thickness as per specification'},
+    {id:'CF3', text:'Bleed followed correctly (3mm from all sides)'},
+    {id:'CF4', text:'Coating / lamination (satin aqua / matte / glossy) as per spec'},
+    {id:'CF5', text:'Die-cut, foil, emboss or spot-UV cover elements checked (if applicable)'},
+    {id:'CF6', text:'Cover print alignment - no cropping or misplacement of elements'},
+  ]},
+];
+
+const innerData = [
+  { section:'Pagination & Sequence', items:[
+    {id:'PG1', text:'All pages in correct sequence and paginated accurately'},
+    {id:'PG2', text:'Page count including cover matches specification'},
+  ]},
+  { section:'Typography & Layout', items:[
+    {id:'TY1', text:'Text alignment, leading, kerning, font size and margins match the approved layout'},
+    {id:'TY2', text:'Black body text set to C0 M0 Y0 K98'},
+    {id:'TY3', text:'Ligatures turned off'},
+    {id:'TY4', text:'Text matches the approved neutral-English Word document'},
+    {id:'TY5', text:'All inner titles, headers and copyright text are built in vector'},
+  ]},
+  { section:'Legal & Front Matter', items:[
+    {id:'LF1', text:'Title verso / copyright page present with accurate text (if not on the back cover)'},
+    {id:'LF2', text:'Edition / print-run line correct (10 9 8 7 6 5 4 3 2 1)'},
+    {id:'LF3', text:'Legal disclaimers and acknowledgements present and accurate'},
+    {id:'LF4', text:'Year of publication printed correctly'},
+  ]},
+  { section:'Images & Illustrations', items:[
+    {id:'IM1', text:'Illustrations/images positioned and scaled correctly, per the previous version'},
+    {id:'IM2', text:'All images and illustrations at the highest available resolution'},
+    {id:'IM3', text:'Content sits within the defined margins'},
+    {id:'IM4', text:'Bleed followed correctly on every page'},
+    {id:'IM5', text:'Gutter margin respected - live matter 10mm away from the binding side'},
+  ]},
+  { section:'Stickers & Series', items:[
+    {id:'ST1', text:'Sticker size, position, shape and resolution accurate (if applicable)'},
+    {id:'ST2', text:'Bookshelf page updated with latest covers and correct skills listed'},
+    {id:'ST3', text:'If part of a series - brand elements consistent with the rest of the series'},
+  ]},
+  { section:'Special Features / Finishing', items:[
+    {id:'SF1', text:'Die-cuts, flaps, pop-ups or novelty elements checked'},
+    {id:'SF2', text:'Interactive parts (flaps/stickers) function-tested'},
+    {id:'SF3', text:'Packaging format (box set / slipcase / order) matches reference sample'},
+  ]},
+  { section:'Binding & Print Quality', items:[
+    {id:'BQ1', text:'Binding type as per order'},
+    {id:'BQ2', text:'Ink and colour quality - consistent, vibrant, no smudging'},
+    {id:'BQ3', text:'Binding tested by flipping'},
+  ]},
+];
+
+const specsData = [
+  { section:'Trim, Bleed & Margins', items:[
+    {id:'PS1', text:'Trim / cut size matches the final cut size specification'},
+    {id:'PS2', text:'Bleed maintained at 3mm from all sides'},
+    {id:'PS3', text:'Cut marks placed at 3mm from trim'},
+    {id:'PS4', text:'Live matter kept 5mm away from final cut marks on all sides'},
+    {id:'PS5', text:'Gutter margin - live matter kept 10mm away from the binding side'},
+    {id:'PS6', text:'IFC + opening page image shifted 6+6mm away from centre on both sides'},
+    {id:'PS7', text:'IBC + last page image shifted 6+6mm away from centre on both sides'},
+    {id:'PS8', text:'Cover normal gatefold - front, inside front cover & gatefold kept 3mm short from width (if applicable)'},
+    {id:'PS9', text:'Cover reverse gatefold - front, inside front cover 3mm short & gatefold 12mm short from width (if applicable)'},
+  ]},
+  { section:'File & Colour Setup', items:[
+    {id:'PS10', text:'File supplied as high-resolution PDF, min. 250 dpi, PDF/X-4, profile Coated FOGRA39'},
+    {id:'PS11', text:'Colour mode set to CMYK'},
+    {id:'PS12', text:'All fonts embedded or converted to curves'},
+    {id:'PS13', text:'All white and colour text set to knockout mode (overprint correct)'},
+  ]},
+];
+
+const ALL_DATA = [
+  { key:'cover', label:'Book Cover', data: coverData },
+  { key:'inner', label:'Inner Pages', data: innerData },
+  { key:'specs', label:'Print Specs', data: specsData },
+];
+
+const STAGE_LABELS = {
+  source_design: 'Source design file before printer',
+  prepress_pdf: 'Printer prepress PDF proof',
+};
+
+const STAGE_COPY = {
+  source_design: 'Use this for editable/source-file QA before sharing final files with the printer. Check against the digital version, previous print, and scripts.',
+  prepress_pdf: 'Use this for printer-supplied PDF proof QA. Check against the digital version, previous print, and scripts. Source-build and physical-production checks can be marked N/A when they cannot be verified from the PDF.',
+};
+
+const PDF_LIMITED_IDS = new Set([
+  'FC5','CF1','CF2','CF4','CF5','TY5','IM2','ST1','SF1','SF2','SF3','BQ1','BQ3',
+]);
+
+const PDF_SCOPE_REMARK = 'N/A for printer prepress PDF proof - cannot be verified from supplied PDF.';
+
+/* ---------------- state ---------------- */
+const STORAGE_KEY = 'book-qa-report-state-v3';
+let state = { meta:{title:'', author:'', publisher:'', isbn:'', edition:'', checker:'', stage:'source_design', notes:''}, checks:{} };
+const metaFields = { mTitle:'title', mAuthor:'author', mPublisher:'publisher', mIsbn:'isbn', mEdition:'edition', mChecker:'checker', mStage:'stage', finalNotes:'notes' };
+let saveTimer = null;
+
+function getCheck(id){ return state.checks[id] || {status:'pending', remark:''}; }
+function setStatus(id, status){
+  const cur = getCheck(id);
+  const next = cur.status === status ? 'pending' : status;
+  state.checks[id] = { status: next, remark: cur.remark || '' };
+}
+function setRemark(id, value){
+  const cur = getCheck(id);
+  state.checks[id] = { status: cur.status || 'pending', remark: value };
+}
+function itemNeedsRemark(id){
+  const st = getCheck(id);
+  return st.status === 'error' && (!st.remark || !st.remark.trim());
+}
+function computeStats(data){
+  let total=0, pass=0, error=0, na=0, pending=0;
+  data.forEach(g=>g.items.forEach(it=>{
+    total++;
+    const st = getCheck(it.id).status;
+    if(st==='pass') pass++;
+    else if(st==='error') error++;
+    else if(st==='na') na++;
+    else pending++;
+  }));
+  return {total,pass,error,na,pending};
+}
+function findMissingRemarks(){
+  const missing = [];
+  ALL_DATA.forEach(tab=>tab.data.forEach(g=>g.items.forEach(it=>{
+    if(itemNeedsRemark(it.id)) missing.push({id:it.id, text:it.text, tab:tab.label});
+  })));
+  return missing;
+}
+
+function isPdfProofMode(){
+  return state.meta.stage === 'prepress_pdf';
+}
+
+function updateStageUI(){
+  const stage = state.meta.stage || 'source_design';
+  const stageCopy = document.getElementById('stageCopy');
+  const applyBtn = document.getElementById('applyPdfScopeBtn');
+  if(stageCopy) stageCopy.textContent = STAGE_COPY[stage] || STAGE_COPY.source_design;
+  if(applyBtn) applyBtn.style.display = stage === 'prepress_pdf' ? 'inline-block' : 'none';
+}
+
+function applyPdfProofScope(){
+  if(!isPdfProofMode()) return;
+  PDF_LIMITED_IDS.forEach(id=>{
+    const cur = getCheck(id);
+    if(cur.status === 'pending'){
+      state.checks[id] = { status:'na', remark: PDF_SCOPE_REMARK };
+      applyItemVisual(id);
+    }
+  });
+  updateAllCounts();
+  saveState();
+}
+
+/* ---------------- DOM build ---------------- */
+function buildTabHTML(data){
+  return data.map((group, idx)=>{
+    const items = group.items.map(it=>`
+      <div class="item" data-id="${it.id}">
+        <div class="item-main">
+          <div class="item-id">${it.id}</div>
+          <div class="item-text">${it.text}</div>
+          <div class="status-toggle">
+            <button type="button" class="stat-btn pass" data-status="pass" title="Mark pass">&#10003;</button>
+            <button type="button" class="stat-btn na" data-status="na" title="Mark not applicable">N/A</button>
+            <button type="button" class="stat-btn error" data-status="error" title="Mark error">&#10005;</button>
+          </div>
+        </div>
+        <input type="text" class="remark-input" placeholder="Remark / comment (optional)">
+        <div class="remark-hint" data-hint></div>
+      </div>`).join('');
+    return `
+      <div class="section" data-idx="${idx}">
+        <div class="section-head">
+          <div class="section-num">${idx+1}</div>
+          <div class="section-title">${group.section}</div>
+          <div class="section-count" data-count></div>
+          <div class="chevron">&#9656;</div>
+        </div>
+        <div class="section-body">${items}</div>
+      </div>`;
+  }).join('');
+}
+
+function buildDOM(){
+  document.getElementById('coverPane').innerHTML = buildTabHTML(coverData);
+  document.getElementById('innerPane').innerHTML = buildTabHTML(innerData);
+  document.getElementById('specsPane').innerHTML =
+    '<div class="pane-note">Mark an item N/A if it doesn\u2019t apply to this book\u2019s format \u2014 for example gatefold specs on a cover with no gatefold.</div>'
+    + buildTabHTML(specsData);
+
+  ['coverPane','innerPane','specsPane'].forEach(paneId=>{
+    const first = document.querySelector('#' + paneId + ' .section[data-idx="0"]');
+    if(first) first.classList.add('open');
+  });
+}
+
+function applyItemVisual(id){
+  const itemEl = document.querySelector(`.item[data-id="${id}"]`);
+  if(!itemEl) return;
+  const st = getCheck(id);
+  itemEl.classList.remove('is-pass','is-error','is-na');
+  itemEl.querySelectorAll('.stat-btn').forEach(b=>b.classList.remove('active'));
+  if(st.status === 'pass'){
+    itemEl.classList.add('is-pass');
+    itemEl.querySelector('.stat-btn.pass').classList.add('active');
+  } else if(st.status === 'error'){
+    itemEl.classList.add('is-error');
+    itemEl.querySelector('.stat-btn.error').classList.add('active');
+  } else if(st.status === 'na'){
+    itemEl.classList.add('is-na');
+    itemEl.querySelector('.stat-btn.na').classList.add('active');
+  }
+  const pdfLimited = isPdfProofMode() && PDF_LIMITED_IDS.has(id);
+  itemEl.classList.toggle('is-pdf-limited', pdfLimited);
+  const remarkInput = itemEl.querySelector('.remark-input');
+  if(remarkInput && document.activeElement !== remarkInput){
+    remarkInput.value = st.remark || '';
+  }
+  const needsRemark = itemNeedsRemark(id);
+  itemEl.classList.toggle('needs-remark', needsRemark);
+  const hintEl = itemEl.querySelector('[data-hint]');
+  if(hintEl){
+    hintEl.textContent = needsRemark
+      ? 'Remark required for an error mark'
+      : pdfLimited ? 'Usually not verifiable from a printer PDF proof; mark N/A if needed.' : '';
+  }
+}
+
+function applyAllVisuals(){
+  ALL_DATA.forEach(tab=>tab.data.forEach(g=>g.items.forEach(it=>applyItemVisual(it.id))));
+}
+
+function updateStamp(overall){
+  const stamp = document.getElementById('stamp');
+  const label = document.getElementById('stampLabel');
+  const allReviewed = overall.total > 0 && overall.pending === 0;
+  stamp.classList.remove('passed','errorfill');
+  if(!allReviewed){
+    label.innerHTML = 'QA<br>REVIEW';
+  } else if(overall.error > 0){
+    stamp.classList.add('errorfill');
+    label.innerHTML = 'REVISION<br>NEEDED';
+  } else {
+    stamp.classList.add('passed');
+    label.innerHTML = 'PASSED<br>QA';
+  }
+}
+
+function updateAllCounts(){
+  const statsByTab = {};
+  ALL_DATA.forEach(tab=>{ statsByTab[tab.key] = computeStats(tab.data); });
+
+  const overall = {total:0, pass:0, error:0, na:0, pending:0};
+  Object.values(statsByTab).forEach(s=>{
+    overall.total += s.total; overall.pass += s.pass; overall.error += s.error;
+    overall.na += s.na; overall.pending += s.pending;
+  });
+
+  const reviewed = overall.total - overall.pending;
+  const pct = overall.total ? Math.round((reviewed/overall.total)*100) : 0;
+
+  document.getElementById('pct').textContent = pct + '%';
+  document.getElementById('pctSub').textContent = reviewed + ' / ' + overall.total + ' reviewed';
+  document.getElementById('barFill').style.width = pct + '%';
+  document.getElementById('countsLine').textContent =
+    overall.pass + ' passed \u00b7 ' + overall.error + ' errors \u00b7 ' + overall.na + ' n/a \u00b7 ' + overall.pending + ' pending';
+  updateStamp(overall);
+
+  document.getElementById('tabCoverBtn').textContent =
+    'Book Cover (' + (statsByTab.cover.total - statsByTab.cover.pending) + '/' + statsByTab.cover.total + ')';
+  document.getElementById('tabInnerBtn').textContent =
+    'Inner Pages (' + (statsByTab.inner.total - statsByTab.inner.pending) + '/' + statsByTab.inner.total + ')';
+  document.getElementById('tabSpecsBtn').textContent =
+    'Print Specs (' + (statsByTab.specs.total - statsByTab.specs.pending) + '/' + statsByTab.specs.total + ')';
+
+  document.querySelectorAll('.section[data-idx]').forEach(sec=>{
+    const items = sec.querySelectorAll('.item');
+    let done=0, err=0;
+    items.forEach(it=>{
+      const st = getCheck(it.dataset.id).status;
+      if(st !== 'pending') done++;
+      if(st === 'error') err++;
+    });
+    const countEl = sec.querySelector('[data-count]');
+    if(countEl) countEl.textContent = done + '/' + items.length + (err ? ' \u00b7 ' + err + ' err' : '');
+  });
+}
+
+/* ---------------- persistence ---------------- */
+function hasWindowStorage(){
+  return window.storage && typeof window.storage.get === 'function' && typeof window.storage.set === 'function';
+}
+
+async function loadState(){
+  try{
+    const storedValue = hasWindowStorage()
+      ? (await window.storage.get(STORAGE_KEY, false))?.value
+      : localStorage.getItem(STORAGE_KEY);
+    if(storedValue){
+      const parsed = JSON.parse(storedValue);
+      state.meta = Object.assign(state.meta, parsed.meta || {});
+      state.checks = parsed.checks || {};
+    }
+    document.getElementById('statusMsg').textContent = 'Progress saved on this device.';
+  }catch(e){
+    document.getElementById('statusMsg').textContent = 'Starting a fresh checklist.';
+  }
+  for(const key in metaFields){
+    document.getElementById(key).value = state.meta[metaFields[key]] || (key === 'mStage' ? 'source_design' : '');
+  }
+  if(!state.meta.stage) state.meta.stage = 'source_design';
+  updateStageUI();
+  applyAllVisuals();
+  updateAllCounts();
+}
+
+async function saveState(){
+  try{
+    const storedValue = JSON.stringify(state);
+    if(hasWindowStorage()){
+      await window.storage.set(STORAGE_KEY, storedValue, false);
+    } else {
+      localStorage.setItem(STORAGE_KEY, storedValue);
+    }
+    document.getElementById('statusMsg').textContent = 'Progress saved on this device.';
+  }catch(e){
+    document.getElementById('statusMsg').textContent = 'Could not save - progress may not persist.';
+  }
+}
+function saveStateDebounced(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveState, 500);
+}
+
+async function resetAll(){
+  state = { meta:{title:'', author:'', publisher:'', isbn:'', edition:'', checker:'', stage:'source_design', notes:''}, checks:{} };
+  for(const key in metaFields){ document.getElementById(key).value = key === 'mStage' ? 'source_design' : ''; }
+  updateStageUI();
+  applyAllVisuals();
+  updateAllCounts();
+  await saveState();
+}
+
+/* ---------------- tabs ---------------- */
+function switchTab(tabName){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('is-active', b.dataset.tab===tabName));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.dataset.tab===tabName));
+}
+
+/* ---------------- events (delegated) ---------------- */
+document.addEventListener('click', (e)=>{
+  const statBtn = e.target.closest('.stat-btn');
+  if(statBtn){
+    const itemEl = statBtn.closest('.item');
+    const id = itemEl.dataset.id;
+    setStatus(id, statBtn.dataset.status);
+    applyItemVisual(id);
+    updateAllCounts();
+    saveState();
+    return;
+  }
+  const head = e.target.closest('.section-head');
+  if(head){ head.parentElement.classList.toggle('open'); return; }
+  const tabBtn = e.target.closest('.tab-btn');
+  if(tabBtn){ switchTab(tabBtn.dataset.tab); return; }
+  const pdfScopeBtn = e.target.closest('#applyPdfScopeBtn');
+  if(pdfScopeBtn){ applyPdfProofScope(); return; }
+});
+
+document.addEventListener('input', (e)=>{
+  const remarkInput = e.target.closest('.remark-input');
+  if(remarkInput){
+    const itemEl = remarkInput.closest('.item');
+    const id = itemEl.dataset.id;
+    setRemark(id, remarkInput.value);
+    applyItemVisual(id);
+    saveStateDebounced();
+    return;
+  }
+  if(metaFields[e.target.id]){
+    state.meta[metaFields[e.target.id]] = e.target.value;
+    if(e.target.id === 'mStage'){
+      updateStageUI();
+      applyAllVisuals();
+    }
+    saveStateDebounced();
+  }
+});
+
+/* ---------------- filename helper ---------------- */
+function buildFilename(ext){
+  const raw = (state.meta.title || 'book-qa-report').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  const stage = (state.meta.stage || 'source_design').replace(/_/g, '-');
+  const d = new Date().toISOString().slice(0,10);
+  return (raw || 'book-qa-report') + '-' + stage + '-' + d + '.' + ext;
+}
+
+function confirmMissingRemarks(){
+  const missing = findMissingRemarks();
+  if(!missing.length) return true;
+  const preview = missing.slice(0,8).map(m=>'\u2022 [' + m.tab + '] ' + m.id + ' \u2014 ' + m.text).join('\n');
+  const more = missing.length > 8 ? '\n...and ' + (missing.length - 8) + ' more' : '';
+  return confirm(
+    missing.length + ' item(s) are marked as an error but are missing a required remark:\n\n' +
+    preview + more + '\n\nExport anyway?'
+  );
+}
+
+/* ---------------- PDF export ---------------- */
+function renderChecklistPDF(doc, title, data, startY, marginX, contentWidth){
+  let y = startY;
+  doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(32,30,26);
+  doc.text(title, marginX, y);
+  y += 18;
+
+  data.forEach(group=>{
+    if(y > 740){ doc.addPage(); y = 50; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(174,58,46);
+    doc.text(group.section, marginX, y);
+    y += 8;
+
+    const body = group.items.map(it=>{
+      const st = getCheck(it.id);
+      return {
+        id: it.id,
+        text: it.text,
+        status: st.status === 'pass' ? 'PASS' : st.status === 'error' ? 'ERROR' : st.status === 'na' ? 'N/A' : 'PENDING',
+        remark: st.remark || '',
+      };
+    });
+
+    doc.autoTable({
+      startY: y,
+      tableWidth: contentWidth,
+      columns:[
+        {header:'ID', dataKey:'id'},
+        {header:'Checkpoint', dataKey:'text'},
+        {header:'Status', dataKey:'status'},
+        {header:'Remark', dataKey:'remark'},
+      ],
+      body: body,
+      styles:{fontSize:9, cellPadding:4, overflow:'linebreak', valign:'top', textColor:[32,30,26]},
+      headStyles:{fillColor:[32,30,26], textColor:255, fontSize:9},
+      alternateRowStyles:{fillColor:[241,236,224]},
+      columnStyles:{
+        id:{cellWidth:32},
+        status:{cellWidth:48, halign:'center'},
+      },
+      margin:{left:marginX, right:marginX},
+      didParseCell: function(d){
+        if(d.section === 'body' && d.column.dataKey === 'status'){
+          const v = d.cell.raw;
+          if(v === 'PASS'){ d.cell.styles.fillColor=[220,238,224]; d.cell.styles.textColor=[42,100,58]; d.cell.styles.fontStyle='bold'; }
+          else if(v === 'ERROR'){ d.cell.styles.fillColor=[246,218,214]; d.cell.styles.textColor=[138,44,34]; d.cell.styles.fontStyle='bold'; }
+          else if(v === 'N/A'){ d.cell.styles.textColor=[107,98,85]; }
+          else { d.cell.styles.textColor=[150,140,120]; }
+        }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 14;
+  });
+  return y;
+}
+
+function buildPDF(){
+  if(!window.jspdf){ alert('The PDF library did not load - check your internet connection and try again.'); return; }
+  if(!confirmMissingRemarks()) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  const marginX = 40;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const contentWidth = pageWidth - marginX*2;
+  let y = 50;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(32,30,26);
+  doc.text('Book QA Report', marginX, y);
+  y += 20;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(107,98,85);
+  doc.text('Generated ' + new Date().toLocaleString(), marginX, y);
+  y += 16;
+
+  doc.autoTable({
+    startY: y,
+    theme:'plain',
+    tableWidth: contentWidth,
+    styles:{fontSize:10, cellPadding:3, textColor:[32,30,26]},
+    columnStyles:{0:{fontStyle:'bold', textColor:[107,98,85], cellWidth:120}},
+    body:[
+      ['Title', state.meta.title || '\u2014'],
+      ['Author', state.meta.author || '\u2014'],
+      ['Publisher', state.meta.publisher || '\u2014'],
+      ['ISBN', state.meta.isbn || '\u2014'],
+      ['Edition / Reprint', state.meta.edition || '\u2014'],
+      ['Checked by', state.meta.checker || '\u2014'],
+      ['QA stage', STAGE_LABELS[state.meta.stage] || STAGE_LABELS.source_design],
+      ['Additional notes', state.meta.notes || '\u2014'],
+    ],
+    margin:{left:marginX, right:marginX},
+  });
+  y = doc.lastAutoTable.finalY + 18;
+
+  const coverStats = computeStats(coverData);
+  const innerStats = computeStats(innerData);
+  const specsStats = computeStats(specsData);
+  const overall = {
+    total: coverStats.total+innerStats.total+specsStats.total,
+    pass: coverStats.pass+innerStats.pass+specsStats.pass,
+    error: coverStats.error+innerStats.error+specsStats.error,
+    na: coverStats.na+innerStats.na+specsStats.na,
+    pending: coverStats.pending+innerStats.pending+specsStats.pending,
+  };
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(32,30,26);
+  doc.text('Summary', marginX, y);
+  y += 8;
+  doc.autoTable({
+    startY: y,
+    tableWidth: contentWidth,
+    head:[['Section','Total','Passed','Errors','N/A','Pending']],
+    body:[
+      ['Book Cover', coverStats.total, coverStats.pass, coverStats.error, coverStats.na, coverStats.pending],
+      ['Inner Pages', innerStats.total, innerStats.pass, innerStats.error, innerStats.na, innerStats.pending],
+      ['Print Specs', specsStats.total, specsStats.pass, specsStats.error, specsStats.na, specsStats.pending],
+      ['Overall', overall.total, overall.pass, overall.error, overall.na, overall.pending],
+    ],
+    styles:{fontSize:10, cellPadding:5, textColor:[32,30,26]},
+    headStyles:{fillColor:[32,30,26], textColor:255},
+    margin:{left:marginX, right:marginX},
+  });
+
+  doc.addPage();
+  renderChecklistPDF(doc, 'Book Cover - QA Checklist', coverData, 50, marginX, contentWidth);
+
+  doc.addPage();
+  renderChecklistPDF(doc, 'Inner Pages - QA Checklist', innerData, 50, marginX, contentWidth);
+
+  doc.addPage();
+  renderChecklistPDF(doc, 'Print Specs - QA Checklist', specsData, 50, marginX, contentWidth);
+
+  doc.save(buildFilename('pdf'));
+}
+
+/* ---------------- Excel export ---------------- */
+function sheetForChecklist(data){
+  const aoa = [['Section','ID','Checkpoint','Status','Remark']];
+  data.forEach(group=>{
+    group.items.forEach(it=>{
+      const st = getCheck(it.id);
+      aoa.push([
+        group.section, it.id, it.text,
+        st.status === 'pass' ? 'PASS' : st.status === 'error' ? 'ERROR' : st.status === 'na' ? 'N/A' : 'PENDING',
+        st.remark || ''
+      ]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:24},{wch:8},{wch:58},{wch:10},{wch:42}];
+  ws['!autofilter'] = { ref: 'A1:E' + aoa.length };
+  return ws;
+}
+
+function buildExcel(){
+  if(!window.XLSX){ alert('The Excel library did not load - check your internet connection and try again.'); return; }
+  if(!confirmMissingRemarks()) return;
+
+  const wb = XLSX.utils.book_new();
+
+  const coverStats = computeStats(coverData);
+  const innerStats = computeStats(innerData);
+  const specsStats = computeStats(specsData);
+  const overall = {
+    total: coverStats.total+innerStats.total+specsStats.total,
+    pass: coverStats.pass+innerStats.pass+specsStats.pass,
+    error: coverStats.error+innerStats.error+specsStats.error,
+    na: coverStats.na+innerStats.na+specsStats.na,
+    pending: coverStats.pending+innerStats.pending+specsStats.pending,
+  };
+
+  const summaryAOA = [
+    ['Book QA Report'],
+    [],
+    ['Title', state.meta.title || ''],
+    ['Author', state.meta.author || ''],
+    ['Publisher', state.meta.publisher || ''],
+    ['ISBN', state.meta.isbn || ''],
+    ['Edition / Reprint', state.meta.edition || ''],
+    ['Checked by', state.meta.checker || ''],
+    ['QA stage', STAGE_LABELS[state.meta.stage] || STAGE_LABELS.source_design],
+    ['Additional notes', state.meta.notes || ''],
+    ['Generated', new Date().toLocaleString()],
+    [],
+    ['Section','Total','Passed','Errors','N/A','Pending'],
+    ['Book Cover', coverStats.total, coverStats.pass, coverStats.error, coverStats.na, coverStats.pending],
+    ['Inner Pages', innerStats.total, innerStats.pass, innerStats.error, innerStats.na, innerStats.pending],
+    ['Print Specs', specsStats.total, specsStats.pass, specsStats.error, specsStats.na, specsStats.pending],
+    ['Overall', overall.total, overall.pass, overall.error, overall.na, overall.pending],
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryAOA);
+  wsSummary['!cols'] = [{wch:20},{wch:30},{wch:12},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+  XLSX.utils.book_append_sheet(wb, sheetForChecklist(coverData), 'Book Cover');
+  XLSX.utils.book_append_sheet(wb, sheetForChecklist(innerData), 'Inner Pages');
+  XLSX.utils.book_append_sheet(wb, sheetForChecklist(specsData), 'Print Specs');
+
+  XLSX.writeFile(wb, buildFilename('xlsx'));
+}
+
+/* ---------------- init ---------------- */
+buildDOM();
+loadState();
+</script>
+
+</body>
+</html>
